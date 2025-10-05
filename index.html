@@ -34,13 +34,18 @@ canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16);outline:none}
   40%{transform:translate(4px,0)}60%{transform:translate(-3px,0)}80%{transform:translate(3px,0)}
 }
 .shake{animation:shake .25s ease-in-out}
-.hintmsg{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(15,23,42,.65);color:#e2e8f0;font-weight:600;font-size:1.1rem;
-  text-align:center;border-radius:16px;backdrop-filter:blur(4px);
-  opacity:0;pointer-events:none;transition:opacity .3s;
+
+/* 開始提示 */
+.start-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.75);color:#e2e8f0;text-align:center;backdrop-filter:blur(4px);
+  border-radius:16px;z-index:10;
 }
-.hintmsg.show{opacity:1;pointer-events:auto;}
+.start-overlay h2{font-size:1.4rem;margin-bottom:1rem;}
+.start-overlay button{
+  padding:.9rem 1.2rem;border:0;border-radius:12px;background:#22c55e;color:#0b1220;
+  font-weight:700;cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -52,7 +57,14 @@ canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16);outline:none}
   <div id="stage" style="position:relative">
     <canvas id="view" width="600" height="440" tabindex="0"></canvas>
     <div id="toast" class="toast"></div>
-    <div id="hintmsg" class="hintmsg">請喺畫面度撳一下先可以控制<br><span style="opacity:.8">Click once to activate controls</span></div>
+
+    <!-- 起始提示 -->
+    <div id="start" class="start-overlay">
+      <h2>請找到出口<br><span style="opacity:.8">Find the exit</span></h2>
+      <button id="startBtn">好的（OK）</button>
+    </div>
+
+    <!-- 結束畫面 -->
     <div id="endcard" class="endcard">
       <div class="card">
         <h2>你走唔甩㗎喇<br><span style="opacity:.9">You can’t get away.</span></h2>
@@ -68,7 +80,8 @@ const CELL=40,COLS=15,ROWS=11;
 const canvas=document.getElementById('view'),ctx=canvas.getContext('2d');
 const toast=document.getElementById('toast'),movesEl=document.getElementById('moves');
 const stage=document.getElementById('stage'),endcard=document.getElementById('endcard');
-const hintmsg=document.getElementById('hintmsg');
+const startOverlay=document.getElementById('start');
+const startBtn=document.getElementById('startBtn');
 
 const M=[
 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -91,10 +104,11 @@ const msgExit=[
 '欄柵擋住咗 / Blocked by barrier.',
 '有陣風講：「返轉頭啦。」 / A whisper: “Turn back.”'
 ];
-let player,ghost,moves=0,tried={},gameOver=false;
+
+let player,ghost,moves=0,tried={},gameOver=false,active=false;
+
 function reset(){
   player={x:1,y:1};ghost={x:2,y:1};moves=0;tried={};gameOver=false;draw();
-  say('慢慢行吓 / Take a stroll.',1500);
 }
 function say(t,ms=1500){toast.textContent=t;toast.classList.add('show');clearTimeout(say.t);say.t=setTimeout(()=>toast.classList.remove('show'),ms);}
 function draw(time=0){
@@ -118,7 +132,7 @@ function drawGhost(){
 }
 function isNearGhost(){return Math.abs(player.x-ghost.x)+Math.abs(player.y-ghost.y)<=1;}
 function tryMove(dx,dy){
-  if(gameOver)return;
+  if(!active||gameOver)return;
   const nx=player.x+dx,ny=player.y+dy;
   if(M[ny][nx]===1)return;
   if(M[ny][nx]===2){
@@ -138,26 +152,17 @@ function moveGhost(){
 }
 function end(){gameOver=true;endcard.classList.add('show');}
 const keys={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
-let active=false;
-addEventListener('keydown',e=>{
-  const v=keys[e.key];
-  if(v){
-    if(!active){hintmsg.classList.add('show');return;}
-    e.preventDefault();tryMove(v[0],v[1]);
-  }
-});
-canvas.addEventListener('click',()=>{
-  active=true;hintmsg.classList.remove('show');canvas.focus();
-});
-window.addEventListener('load',()=>{
-  // 嘗試自動聚焦（某些瀏覽器仍需點擊）
-  canvas.focus();
-  setTimeout(()=>{
-    if(!document.hasFocus()){hintmsg.classList.add('show');}
-  },600);
-});
+addEventListener('keydown',e=>{const v=keys[e.key];if(v){e.preventDefault();tryMove(v[0],v[1]);}});
 function loop(t){draw(t);requestAnimationFrame(loop);}
 reset();loop();
+
+// --- 開始畫面控制 ---
+startBtn.addEventListener('click',()=>{
+  startOverlay.remove();
+  active=true;
+  say('開始喇，搵出口啦！ / Let’s begin, find the exit!',1500);
+  canvas.focus();
+});
 </script>
 </body>
 </html>
