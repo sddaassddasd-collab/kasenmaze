@@ -1,229 +1,140 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>公園迷宮｜四個出口都不通</title>
-  <style>
-    :root{--bg:#f1f5f9;--ink:#0f172a;--wall:#1f2937;--path:#e5f4ef;--exit:#86efac;--player:#0ea5e9;--hud:#ffffffcc}
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0}
-    body{
-      background:linear-gradient(180deg,var(--bg),#fff 70%);
-      color:var(--ink);
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial,sans-serif;
-      display:grid; place-items:center;
-    }
-    .frame{position:relative; padding:16px}
-    canvas{display:block; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.16);}
-    .hud{
-      position:absolute; left:50%; top:8px; transform:translateX(-50%);
-      background:var(--hud); backdrop-filter:blur(8px);
-      padding:8px 12px; border-radius:999px; display:flex; gap:12px; align-items:center;
-      font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,.08);
-      user-select:none
-    }
-    .hud kbd{background:#00000010; padding:2px 6px; border-radius:6px; font-weight:700}
-    .btns{position:absolute; right:8px; bottom:8px; display:flex; gap:8px}
-    button{border:0; padding:10px 12px; border-radius:10px; font-weight:700; cursor:pointer; background:#111827; color:#fff; box-shadow:0 6px 14px rgba(0,0,0,.2)}
-    button.secondary{background:#334155}
-    .toast{position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
-      background:#111827; color:#fff; padding:10px 14px; border-radius:12px; font-weight:700; box-shadow:0 10px 30px rgba(0,0,0,.35); opacity:0; transition:opacity .3s}
-    .toast.show{opacity:1}
-    /* On-screen dpad for mobile */
-    .dpad{position:absolute; left:12px; bottom:12px; display:grid; grid-template:repeat(3,46px)/repeat(3,46px); gap:8px}
-    .dpad button{background:#0f172a; opacity:.9}
-    .dpad .ghost{visibility:hidden}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>迷宮｜No Way Out</title>
+<style>
+:root{
+  --bg:#f1f5f9;--ink:#0f172a;--wall:#1f2937;--path:#e5f4ef;
+  --exit:#86efac;--player:#0ea5e9;--ghost:#ec4899;--hud:#ffffffcc
+}
+html,body{height:100%;margin:0;display:grid;place-items:center;
+  background:linear-gradient(180deg,var(--bg),#fff 70%);
+  font-family:-apple-system,"Noto Sans TC",sans-serif;color:var(--ink);}
+.frame{position:relative;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.hud{background:var(--hud);backdrop-filter:blur(8px);
+  padding:10px 14px;border-radius:999px;display:flex;gap:16px;align-items:center;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.08);user-select:none}
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
+  background:#111827;color:#fff;padding:10px 14px;border-radius:12px;font-weight:700;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
+.endcard{position:absolute;inset:0;display:none;place-items:center;
+  background:rgba(15,23,42,.6);backdrop-filter:blur(4px);border-radius:16px;}
+.endcard.show{display:grid}
+.card{background:#0f172a;color:#e2e8f0;padding:20px;border-radius:16px;
+  text-align:center;width:min(560px,92vw);box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.card h2{margin:.3em 0;font-size:1.4rem}
+.btn-link{padding:.9rem 1.2rem;border:0;border-radius:12px;background:#22c55e;color:#0b1220;
+  font-weight:700;cursor:pointer;text-decoration:none}
+@keyframes shake{
+  0%,100%{transform:translate(0,0)}20%{transform:translate(-4px,0)}
+  40%{transform:translate(4px,0)}60%{transform:translate(-3px,0)}80%{transform:translate(3px,0)}
+}
+.shake{animation:shake .25s ease-in-out}
+</style>
 </head>
 <body>
-  <div class="frame">
-    <div class="hud" aria-live="polite">
-      <span>步數：<b id="moves">0</b></span>
-      <span>目標：找到出口？</span>
-      <span style="opacity:.7">操作：<kbd>↑↓←→</kbd>/<kbd>WASD</kbd></span>
-    </div>
-    <canvas id="view" width="600" height="440" aria-label="公園迷宮畫面"></canvas>
-    <div class="btns">
-      <button id="restart">重新開始</button>
-      <button class="secondary" id="hint">提示</button>
-    </div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <div class="dpad" id="dpad" aria-hidden="true">
-      <button data-dx="0" data-dy="-1">↑</button>
-      <div class="ghost"></div>
-      <button data-dx="0" data-dy="1">↓</button>
-      <button data-dx="-1" data-dy="0">←</button>
-      <div class="ghost"></div>
-      <button data-dx="1" data-dy="0">→</button>
-      <div class="ghost"></div>
+<div class="frame">
+  <div class="hud">
+    <span>步數 / Moves：<b id="moves">0</b></span>
+    <span>目標 / Goal：搵出口？ / Find an exit?</span>
+  </div>
+  <div id="stage" style="position:relative">
+    <canvas id="view" width="600" height="440"></canvas>
+    <div id="toast" class="toast"></div>
+    <div id="endcard" class="endcard">
+      <div class="card">
+        <h2>你走唔甩㗎喇<br><span style="opacity:.9">You can’t get away.</span></h2>
+        <p>四個出口你都試過喇。<br><span style="opacity:.8">You’ve tried all four exits.</span></p>
+        <a id="fallbackLink" class="btn-link" href="https://ths.li/Lxo6Squ" target="_top" rel="noopener">放棄（Give up）</a>
+      </div>
     </div>
   </div>
+</div>
 
-  <script>
-  // === 基本設定 ===
-  const CELL=40, COLS=15, ROWS=11; // 600x440
-  const canvas = document.getElementById('view');
-  const ctx = canvas.getContext('2d');
-  const toast = document.getElementById('toast');
-  const movesEl = document.getElementById('moves');
+<script>
+const CELL=40,COLS=15,ROWS=11;
+const canvas=document.getElementById('view'),ctx=canvas.getContext('2d');
+const toast=document.getElementById('toast'),movesEl=document.getElementById('moves');
+const stage=document.getElementById('stage'),endcard=document.getElementById('endcard');
+const M=[
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+[1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+[1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+[1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
+[1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
+[1,0,0,0,0,3,0,0,0,0,0,0,1,0,1],
+[1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
+[1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
+[1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+[1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+const exits=[{x:7,y:0},{x:14,y:5},{x:7,y:10},{x:0,y:5}];
+for(const e of exits)M[e.y][e.x]=2;
+const msgExit=[
+'呢度過唔到 / Can’t pass here.',
+'前面封咗路 / Road closed.',
+'欄柵擋住咗 / Blocked by barrier.',
+'有陣風講：「返轉頭啦。」 / A whisper: “Turn back.”'
+];
+let player,ghost,moves=0,tried={},gameOver=false,flashTimer=0;
 
-  // 地圖圖例：0=路、1=牆、2=出口（假）、3=樹（裝飾/可互動）
-  // 這是一個簡單手刻迷宮，四邊各留一個出口格子（實際不可通）
-  const baseMap = [
-    // 0..14 (15 cols)
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 0 top wall
-    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
-    [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
-    [1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
-    [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
-    [1,0,0,0,0,3,0,0,0,0,0,0,1,0,1], // 中央放一棵樹(3)
-    [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
-    [1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
-    [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
-    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 10 bottom wall
-  ];
-  // 四個出口位置（視覺上通往外面，但實際被阻擋）
-  const exits = [ {x:7,y:0}, {x:14,y:5}, {x:7,y:10}, {x:0,y:5} ];
-
-  // 在 baseMap 上標記出口
-  const M = baseMap.map((row,y)=> row.map((v,x)=> {
-    if (exits.some(e=>e.x===x && e.y===y)) return 2; // 假出口
-    return v;
-  }));
-
-  const messages = [
-    '此路不通。', '前方施工中。', '鐵柵欄擋住了去路。',
-    '一陣風傳來聲音：回去吧。', '雜草叢生，走不過去。', '保全：公園尚未開放出入口。'
-  ];
-
-  let player, moves;
-
-  function reset(){
-    player = {x:1, y:1};
-    moves = 0; updateHUD();
-    draw();
-    say('在公園裡散步吧。四個出口看起來都能出去…嗎？',1200);
+function reset(){
+  player={x:1,y:1};ghost={x:2,y:1};moves=0;tried={};gameOver=false;draw();
+  say('慢慢行吓 / Take a stroll.',1500);
+}
+function say(t,ms=1500){toast.textContent=t;toast.classList.add('show');clearTimeout(say.t);say.t=setTimeout(()=>toast.classList.remove('show'),ms);}
+function draw(time=0){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    let t=M[y][x];ctx.fillStyle=t===1?'#1f2937':'#e5f4ef';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+    if(t===2){ctx.fillStyle='#86efac';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+    if(t===3){ctx.fillStyle='#10b981';ctx.beginPath();ctx.arc(x*CELL+20,y*CELL+20,14,0,6.28);ctx.fill();}
   }
-
-  function updateHUD(){ movesEl.textContent = moves; }
-
-  function say(text, ms=1500){
-    toast.textContent = text;
-    toast.classList.add('show');
-    clearTimeout(say._t);
-    say._t = setTimeout(()=> toast.classList.remove('show'), ms);
+  drawGhost();drawPlayer(time);
+}
+function drawPlayer(time){
+  const near=isNearGhost();
+  const flicker=near && Math.floor(time/150)%2===0;
+  if(flicker)return;
+  const cx=player.x*CELL+20,cy=player.y*CELL+20;
+  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);
+  ctx.fillStyle='#0ea5e9';ctx.fill();
+}
+function drawGhost(){
+  const cx=ghost.x*CELL+20,cy=ghost.y*CELL+20;
+  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);
+  ctx.fillStyle='#ec4899';ctx.fill();
+}
+function isNearGhost(){return Math.abs(player.x-ghost.x)+Math.abs(player.y-ghost.y)<=1;}
+function tryMove(dx,dy){
+  if(gameOver)return;
+  const nx=player.x+dx,ny=player.y+dy;
+  if(M[ny][nx]===1)return;
+  if(M[ny][nx]===2){
+    say(msgExit[(Math.random()*msgExit.length)|0],1000);
+    stage.classList.add('shake');setTimeout(()=>stage.classList.remove('shake'),300);
+    tried[`${nx},${ny}`]=1;if(Object.keys(tried).length===4)end();
+    return;
   }
-
-  function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    for(let y=0;y<ROWS;y++){
-      for(let x=0;x<COLS;x++){
-        const t = M[y][x];
-        // 背景路徑
-        ctx.fillStyle = t===1 ? getComputedStyle(document.documentElement).getPropertyValue('--wall') : getComputedStyle(document.documentElement).getPropertyValue('--path');
-        ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
-        // 出口著色
-        if(t===2){
-          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--exit');
-          ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
-        }
-        // 樹木裝飾
-        if(t===3){
-          drawTree(x,y);
-        }
-        // 網格淡線
-        ctx.strokeStyle = 'rgba(15,23,42,.08)';
-        ctx.strokeRect(x*CELL+0.5,y*CELL+0.5,CELL-1,CELL-1);
-      }
-    }
-    drawPlayer();
-  }
-
-  function drawTree(x,y){
-    const cx = x*CELL + CELL/2, cy = y*CELL + CELL/2;
-    // 樹幹
-    ctx.fillStyle = '#8b5a2b';
-    ctx.fillRect(cx-4, cy+6, 8, 14);
-    // 樹冠
-    ctx.beginPath();
-    ctx.arc(cx, cy, 14, 0, Math.PI*2);
-    ctx.fillStyle = '#10b981';
-    ctx.fill();
-  }
-
-  function drawPlayer(){
-    const cx = player.x*CELL + CELL/2;
-    const cy = player.y*CELL + CELL/2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 12, 0, Math.PI*2);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--player');
-    ctx.fill();
-    // 小陰影
-    ctx.beginPath();
-    ctx.ellipse(cx, cy+10, 12, 5, 0, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(0,0,0,.15)';
-    ctx.fill();
-  }
-
-  function tryMove(dx,dy){
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    // 邊界保護
-    if(nx<0||ny<0||nx>=COLS||ny>=ROWS) return;
-    const t = M[ny][nx];
-    if(t===1){ // 牆
-      bump(nx,ny); return;
-    }
-    if(t===2){ // 出口：顯示不通
-      say(messages[(Math.random()*messages.length)|0]);
-      bump(nx,ny); return;
-    }
-    // 允許走到樹旁邊，若站在樹上(3)也視為路可走，並給彩蛋文字
-    player.x = nx; player.y = ny; moves++; updateHUD(); draw();
-    if(t===3){
-      say('你摸了大樹，什麼也沒有發生。也許…這裡本來就沒有出口。');
-    }
-  }
-
-  function bump(nx,ny){
-    // 輕微抖動效果
-    const ox = canvas.style.marginLeft;
-    let i=0; const id = setInterval(()=>{
-      canvas.style.marginLeft = (i%2?'-':'') + '2px';
-      if(++i>6){ clearInterval(id); canvas.style.marginLeft = ox; }
-    }, 30);
-  }
-
-  // 鍵盤操作
-  const keys = {ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
-                w:[0,-1], s:[0,1], a:[-1,0], d:[1,0], W:[0,-1], S:[0,1], A:[-1,0], D:[1,0]};
-  addEventListener('keydown', e=>{
-    const v = keys[e.key];
-    if(v){ e.preventDefault(); tryMove(v[0],v[1]); }
-  });
-
-  // 重新開始與提示
-  document.getElementById('restart').addEventListener('click', reset);
-  document.getElementById('hint').addEventListener('click', ()=>{
-    say('提示：四個出口都不通。真正的結局，也許是…在公園裡待一會兒。', 2200);
-  });
-
-  // 行動裝置 dpad
-  document.getElementById('dpad').addEventListener('click', (e)=>{
-    const b = e.target.closest('button'); if(!b) return;
-    tryMove(parseInt(b.dataset.dx,10), parseInt(b.dataset.dy,10));
-  });
-  // 如果窄螢幕就顯示 dpad
-  function updateDpad(){
-    document.getElementById('dpad').style.display = matchMedia('(max-width: 760px)').matches ? 'grid' : 'none';
-  }
-  addEventListener('resize', updateDpad);
-
-  // 初始
-  updateDpad();
-  reset();
-  </script>
+  player.x=nx;player.y=ny;moves++;movesEl.textContent=moves;
+  moveGhost();
+  if(player.x===ghost.x&&player.y===ghost.y)say('又遇到鬼啦！快走！ / Ghost again! Run!',1500);
+}
+function moveGhost(){
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  const moveset=dirs.filter(([dx,dy])=>M[ghost.y+dy][ghost.x+dx]!==1);
+  if(moveset.length){const [x,y]=moveset[(Math.random()*moveset.length)|0];ghost.x+=x;ghost.y+=y;}
+}
+function end(){gameOver=true;endcard.classList.add('show');}
+const keys={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
+addEventListener('keydown',e=>{const v=keys[e.key];if(v){e.preventDefault();tryMove(v[0],v[1]);}});
+function loop(t){draw(t);requestAnimationFrame(loop);}
+reset();loop();
+</script>
 </body>
 </html>
