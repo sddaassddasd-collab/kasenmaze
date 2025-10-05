@@ -20,7 +20,7 @@ html,body{height:100%;margin:0;display:grid;place-items:center;
   background:#111827;color:#fff;padding:10px 14px;border-radius:12px;font-weight:700;
   box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;transition:opacity .3s}
 .toast.show{opacity:1}
-canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
+canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16);outline:none}
 .endcard{position:absolute;inset:0;display:none;place-items:center;
   background:rgba(15,23,42,.6);backdrop-filter:blur(4px);border-radius:16px;}
 .endcard.show{display:grid}
@@ -34,6 +34,13 @@ canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
   40%{transform:translate(4px,0)}60%{transform:translate(-3px,0)}80%{transform:translate(3px,0)}
 }
 .shake{animation:shake .25s ease-in-out}
+.hintmsg{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.65);color:#e2e8f0;font-weight:600;font-size:1.1rem;
+  text-align:center;border-radius:16px;backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.hintmsg.show{opacity:1;pointer-events:auto;}
 </style>
 </head>
 <body>
@@ -43,8 +50,9 @@ canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
     <span>目標 / Goal：搵出口？ / Find an exit?</span>
   </div>
   <div id="stage" style="position:relative">
-    <canvas id="view" width="600" height="440"></canvas>
+    <canvas id="view" width="600" height="440" tabindex="0"></canvas>
     <div id="toast" class="toast"></div>
+    <div id="hintmsg" class="hintmsg">請喺畫面度撳一下先可以控制<br><span style="opacity:.8">Click once to activate controls</span></div>
     <div id="endcard" class="endcard">
       <div class="card">
         <h2>你走唔甩㗎喇<br><span style="opacity:.9">You can’t get away.</span></h2>
@@ -60,6 +68,8 @@ const CELL=40,COLS=15,ROWS=11;
 const canvas=document.getElementById('view'),ctx=canvas.getContext('2d');
 const toast=document.getElementById('toast'),movesEl=document.getElementById('moves');
 const stage=document.getElementById('stage'),endcard=document.getElementById('endcard');
+const hintmsg=document.getElementById('hintmsg');
+
 const M=[
 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
@@ -81,8 +91,7 @@ const msgExit=[
 '欄柵擋住咗 / Blocked by barrier.',
 '有陣風講：「返轉頭啦。」 / A whisper: “Turn back.”'
 ];
-let player,ghost,moves=0,tried={},gameOver=false,flashTimer=0;
-
+let player,ghost,moves=0,tried={},gameOver=false;
 function reset(){
   player={x:1,y:1};ghost={x:2,y:1};moves=0;tried={};gameOver=false;draw();
   say('慢慢行吓 / Take a stroll.',1500);
@@ -98,17 +107,14 @@ function draw(time=0){
   drawGhost();drawPlayer(time);
 }
 function drawPlayer(time){
-  const near=isNearGhost();
-  const flicker=near && Math.floor(time/150)%2===0;
+  const near=isNearGhost();const flicker=near&&Math.floor(time/150)%2===0;
   if(flicker)return;
   const cx=player.x*CELL+20,cy=player.y*CELL+20;
-  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);
-  ctx.fillStyle='#0ea5e9';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);ctx.fillStyle='#0ea5e9';ctx.fill();
 }
 function drawGhost(){
   const cx=ghost.x*CELL+20,cy=ghost.y*CELL+20;
-  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);
-  ctx.fillStyle='#ec4899';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,12,0,6.28);ctx.fillStyle='#ec4899';ctx.fill();
 }
 function isNearGhost(){return Math.abs(player.x-ghost.x)+Math.abs(player.y-ghost.y)<=1;}
 function tryMove(dx,dy){
@@ -132,7 +138,24 @@ function moveGhost(){
 }
 function end(){gameOver=true;endcard.classList.add('show');}
 const keys={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
-addEventListener('keydown',e=>{const v=keys[e.key];if(v){e.preventDefault();tryMove(v[0],v[1]);}});
+let active=false;
+addEventListener('keydown',e=>{
+  const v=keys[e.key];
+  if(v){
+    if(!active){hintmsg.classList.add('show');return;}
+    e.preventDefault();tryMove(v[0],v[1]);
+  }
+});
+canvas.addEventListener('click',()=>{
+  active=true;hintmsg.classList.remove('show');canvas.focus();
+});
+window.addEventListener('load',()=>{
+  // 嘗試自動聚焦（某些瀏覽器仍需點擊）
+  canvas.focus();
+  setTimeout(()=>{
+    if(!document.hasFocus()){hintmsg.classList.add('show');}
+  },600);
+});
 function loop(t){draw(t);requestAnimationFrame(loop);}
 reset();loop();
 </script>
